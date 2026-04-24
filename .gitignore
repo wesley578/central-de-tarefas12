@@ -1,0 +1,24 @@
+# Dependências
+node_modules/
+
+# Banco de dados (gerado automaticamente na primeira execução)
+tarefas.db
+tarefas.db-shm
+tarefas.db-wal
+
+# Variáveis de ambiente (NUNCA subir ao GitHub — contém senhas e chaves)
+.env
+
+# Arquivos de upload dos usuários
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Arquivos do sistema macOS
+.DS_Store
+
+# Scripts auxiliares de migração (usados apenas durante desenvolvimento)
+apply_changes.js
+mod_backend.js
+mod_frontend.js
+mod_prazos.js
+update_frontend.js

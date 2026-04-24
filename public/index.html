@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Central de Tarefas</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <!-- LOGIN OVERLAY -->
+    <div id="pg-login" style="position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+      <div style="background:var(--surf);border:1px solid var(--bdr2);border-radius:16px;width:100%;max-width:380px;padding:36px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:6px;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Central de Tarefas</div>
+        <div style="font-size:13px;color:var(--mt);margin-bottom:28px">Faça login para continuar</div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="fg">
+            <label>E-mail</label>
+            <input type="email" id="login-email" placeholder="admin@admin.com"/>
+          </div>
+          <div class="fg">
+            <label>Senha</label>
+            <input type="password" id="login-senha" placeholder="••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
+          </div>
+          <button class="btn btn-p" style="width:100%;justify-content:center;padding:10px 14px;font-size:13px" onclick="doLogin()">Entrar</button>
+          <div id="login-error" style="color:var(--red);font-size:12px;text-align:center;display:none"></div>
+        </div>
+      </div>
+    </div>
+
+<div class="layout">
+  <header class="topbar">
+    <div class="logo">Central de Tarefas</div>
+    <div class="logo-sub">Escritório de Contabilidade</div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
+      <div id="nav-bell" onclick="document.querySelector('[data-page=notificacoes]').click()" style="cursor:pointer;position:relative;color:var(--mt);transition:color .2s">
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <div id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:700;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center">0</div>
+      </div>
+      <div class="live" style="cursor:pointer" onclick="doLogout()">Sair</div>
+    </div>
+  </header>
+
+  <nav class="sidebar">
+    <div class="nav-sec">Visão Geral</div>
+    <div class="nav-item on" data-page="dashboard">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".8"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".4"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".4"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".8"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item" data-page="matrix">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M1 4h14M1 8h14M1 12h14M4 1v14M8 1v14M12 1v14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".7"/></svg>
+      Matriz
+    </div>
+    <div class="nav-sec" style="margin-top:8px">Gestão</div>
+    <div class="nav-item" data-page="execucoes">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Execuções
+    </div>
+    <div class="nav-item" data-page="historico">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Histórico
+    </div>
+    <div class="nav-item admin-only" data-page="empresas">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M2 14V5l5-4 5 4v9" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><rect x="5.5" y="9" width="3" height="5" rx=".5" fill="currentColor" opacity=".5"/></svg>
+      Empresas
+    </div>
+    <div class="nav-item admin-only" data-page="tarefas">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M2 3h12M2 6h8M2 9h10M2 12h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Tarefas
+    </div>
+    <div class="nav-item" data-page="notificacoes">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M8 14A6 6 0 108 2a6 6 0 000 12zM8 4v4l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Notificações
+    </div>
+    <div class="nav-item admin-only" data-page="configuracoes">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" fill="currentColor"/><path d="M13.5 9h-1.2c-.1-.5-.3-.9-.6-1.3l.8-.8c.2-.2.2-.6 0-.8l-1.4-1.4c-.2-.2-.6-.2-.8 0l-.8.8c-.4-.3-.8-.5-1.3-.6v-1.2c0-.3-.3-.5-.6-.5h-2c-.3 0-.6.2-.6.5v1.2c-.5.1-.9.3-1.3.6l-.8-.8c-.2-.2-.6-.2-.8 0l-1.4 1.4c-.2.2-.2.6 0 .8l.8.8c-.3.4-.5.8-.6 1.3h-1.2c-.3 0-.5.3-.5.6v2c0 .3.2.6.5.6h1.2c.1.5.3.9.6 1.3l-.8.8c-.2.2-.2.6 0 .8l1.4 1.4c.2.2.6.2.8 0l.8-.8c.4.3.8.5 1.3.6v1.2c0 .3.3.5.6.5h2c.3 0 .6-.2.6-.5v-1.2c.5-.1.9-.3 1.3-.6l.8.8c.2.2.6.2.8 0l1.4-1.4c.2-.2.2-.6 0-.8l-.8-.8c.3-.4.5-.8.6-1.3h1.2c.3 0 .5-.3.5-.6v-2c0-.3-.2-.5-.5-.5zM8 10.5A2.5 2.5 0 1 1 8 5.5a2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg>
+      Configurações
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page on" id="pg-dashboard">
+      <div class="ph">
+        <div><div class="pt">Dashboard</div><div class="ps">Mês atual · tarefas por empresa</div></div>
+        <button class="btn btn-g btn-sm" onclick="loadDash()">↻ Atualizar</button>
+      </div>
+      <div class="cards" id="dash-cards"></div>
+      <div class="cr">
+        <div class="cbox"><div class="ct">Conclusão por categoria</div><canvas id="c-cat"></canvas></div>
+        <div class="cbox"><div class="ct">Distribuição de status</div><canvas id="c-sta"></canvas></div>
+      </div>
+      <div class="sec">
+        <div class="sh"><div class="st">% por tarefa</div><span style="font-size:11px;color:var(--mt)">base: empresas com tarefa habilitada</span></div>
+        <div class="sb"><div class="pl" id="prog-list"></div></div>
+      </div>
+      <div class="sec">
+        <div class="sh"><div class="st">Progresso por empresa</div></div>
+        <div class="sb"><div class="cg2" id="co-grid"></div></div>
+      </div>
+      <div class="sec">
+        <div class="sh"><div class="st">Atividades recentes</div></div>
+        <div style="overflow-x:auto">
+          <table class="dtbl" id="recent-tbl">
+            <thead><tr><th>Empresa</th><th>Tarefa</th><th>Categoria</th><th>Status</th><th>O que foi feito</th><th>Quando</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MATRIX -->
+    <div class="page" id="pg-matrix">
+      <div class="ph">
+        <div><div class="pt">Matriz</div><div class="ps">Empresa × Tarefa — status visual</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11px">
+          <span class="badge b-ok">Concluída</span>
+          <span class="badge b-pr">Em andamento</span>
+          <span class="badge b-pe">Pendente</span>
+          <span class="badge b-bl">Bloqueada</span>
+          <span class="badge b-na">N/A</span>
+        </div>
+      </div>
+      <div class="sec"><div class="mat-wrap sb" style="padding:0"><div id="mat-cont"></div></div></div>
+    </div>
+
+    <!-- EXECUÇÕES -->
+    <div class="page" id="pg-execucoes">
+      <div class="ph">
+        <div><div class="pt">Execuções</div><div class="ps">Mês corrente</div></div>
+      </div>
+      <div class="sec">
+        <div class="sh" style="gap:8px;flex-wrap:wrap">
+          <div class="fbar" style="flex:1">
+            <select id="fe-emp" onchange="execPage=1; loadExec()"><option value="">Todas as empresas</option></select>
+            <select id="fe-sta" onchange="execPage=1; loadExec()">
+              <option value="">Todos os status</option>
+              <option value="pendente">Pendente</option>
+              <option value="em_andamento">Em andamento</option>
+              <option value="concluida">Concluída</option>
+              <option value="bloqueada">Bloqueada</option>
+            </select>
+            <select id="fe-cat" onchange="execPage=1; loadExec()">
+              <option value="">Todas categorias</option>
+              <option>Fiscal</option><option>Contábil</option>
+              <option>Dep. Pessoal</option><option>Obrigações Acessórias</option><option>Administrativo</option>
+            </select>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="dtbl" id="exec-tbl">
+            <thead><tr><th>Empresa</th><th>Tarefa</th><th>Categoria</th><th>Status</th><th>O que foi feito</th><th>Quando</th><th>Responsável</th><th>Anexo</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div style="padding:14px;border-top:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;font-size:12px">
+          <span style="color:var(--mt)" id="exec-page-info">Página 1</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-g btn-sm" onclick="changeExecPage(-1)">Anterior</button>
+            <button class="btn btn-g btn-sm" onclick="changeExecPage(1)">Próxima</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTÓRICO -->
+    <div class="page" id="pg-historico">
+      <div class="ph">
+        <div><div class="pt">Histórico</div><div class="ps">Execuções arquivadas mês a mês</div></div>
+        <button class="btn btn-warn btn-sm admin-only" onclick="openFecharMes()">📦 Fechar mês</button>
+      </div>
+      <div id="hist-resumo" class="cg2" style="margin-bottom:4px"></div>
+      <div class="sec">
+        <div class="sh" style="gap:8px;flex-wrap:wrap">
+          <div class="fbar" style="flex:1">
+            <select id="fh-mes" onchange="histPage=1; loadHist()"><option value="">Todos os meses</option></select>
+            <select id="fh-emp" onchange="histPage=1; loadHist()"><option value="">Todas as empresas</option></select>
+            <select id="fh-sta" onchange="histPage=1; loadHist()">
+              <option value="">Todos os status</option>
+              <option value="pendente">Pendente</option>
+              <option value="em_andamento">Em andamento</option>
+              <option value="concluida">Concluída</option>
+              <option value="bloqueada">Bloqueada</option>
+            </select>
+            <select id="fh-cat" onchange="histPage=1; loadHist()">
+              <option value="">Todas categorias</option>
+              <option>Fiscal</option><option>Contábil</option>
+              <option>Dep. Pessoal</option><option>Obrigações Acessórias</option><option>Administrativo</option>
+            </select>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="dtbl" id="hist-tbl">
+            <thead><tr><th>Mês</th><th>Empresa</th><th>Tarefa</th><th>Categoria</th><th>Status</th><th>O que foi feito</th><th>Quando</th><th>Responsável</th><th>Anexo</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div style="padding:14px;border-top:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;font-size:12px">
+          <span style="color:var(--mt)" id="hist-page-info">Página 1</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-g btn-sm" onclick="changeHistPage(-1)">Anterior</button>
+            <button class="btn btn-g btn-sm" onclick="changeHistPage(1)">Próxima</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EMPRESAS -->
+    <div class="page" id="pg-empresas">
+      <div class="ph">
+        <div><div class="pt">Empresas</div><div class="ps">Gerencie clientes e suas tarefas</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-g btn-sm" onclick="downloadCsvModel()">Baixar Modelo CSV</button>
+          <button class="btn btn-g btn-sm" onclick="document.getElementById('csv-file').click()">Importar CSV</button>
+          <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="importCsv(event)"/>
+          <button class="btn btn-p btn-sm" onclick="openEmpresaModal()">+ Nova empresa</button>
+        </div>
+      </div>
+      <div class="sec">
+        <div style="overflow-x:auto">
+          <table class="dtbl" id="emp-tbl">
+            <thead><tr><th>Nome</th><th>CNPJ/CPF</th><th>Regime</th><th>Tarefas habilitadas</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAREFAS -->
+    <div class="page" id="pg-tarefas">
+      <div class="ph">
+        <div><div class="pt">Tarefas</div><div class="ps">Templates de tarefas recorrentes</div></div>
+        <button class="btn btn-p btn-sm" onclick="openTarefaModal()">+ Nova tarefa</button>
+      </div>
+      <div class="sec">
+        <div style="overflow-x:auto">
+          <table class="dtbl" id="tar-tbl">
+            <thead><tr><th>Nome</th><th>Categoria</th><th>Vencimento (Dia)</th><th>Descrição</th><th style="text-align:right">Ações</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    
+    <!-- NOTIFICAÇÕES -->
+    <div class="page" id="pg-notificacoes">
+      <div class="ph">
+        <div><div class="pt">Notificações</div><div class="ps">Avisos de prazos e atrasos</div></div>
+        <button class="btn btn-g btn-sm" onclick="loadNotificacoes()">↻ Atualizar</button>
+      </div>
+      <div class="sec">
+        <div class="sb" id="notif-list" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+    </div>
+
+    <!-- CONFIGURAÇÕES -->
+    <div class="page" id="pg-configuracoes">
+      <div class="ph">
+        <div><div class="pt">Configurações</div><div class="ps">Ajustes gerais do sistema</div></div>
+      </div>
+      <div class="sec">
+        <div class="sh"><div class="st">Identidade</div></div>
+        <div class="sb" style="display:flex;flex-direction:column;gap:16px;max-width:400px">
+          <div class="fg">
+            <label>Nome do Escritório</label>
+            <input id="cfg-nome-escritorio" placeholder="Ex: Escritório de Contabilidade"/>
+          </div>
+          <button class="btn btn-p" onclick="saveConfiguracoes()" style="align-self:flex-start">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="ov hide" id="ov" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="mh"><div class="mt2" id="m-title">—</div><button class="mc" onclick="closeModal()">×</button></div>
+    <div class="mb" id="m-body"></div>
+    <div class="mf" id="m-foot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/js/api.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
