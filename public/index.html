@@ -36,6 +36,7 @@
     <div class="logo">Central de Tarefas</div>
     <div class="logo-sub">Escritório de Contabilidade</div>
     <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
+      <div id="competencia-badge" onclick="document.querySelector('[data-page=execucoes]').click()" title="Competência ativa — clique para gerenciar" style="cursor:pointer;font-size:11px;font-weight:600;color:var(--ac);background:rgba(79,127,255,.10);border:1px solid rgba(79,127,255,.2);border-radius:20px;padding:4px 10px;white-space:nowrap">📅 ...</div>
       <div id="nav-bell" onclick="document.querySelector('[data-page=notificacoes]').click()" style="cursor:pointer;position:relative;color:var(--mt);transition:color .2s">
         <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
         <div id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:700;width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center">0</div>
@@ -71,6 +72,18 @@
       <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M2 3h12M2 6h8M2 9h10M2 12h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
       Tarefas
     </div>
+    <div class="nav-item admin-only" data-page="nfse">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M1 4h14M1 8h14M1 12h14" stroke="currentColor" stroke-width="1.2" opacity=".7"/><path d="M4 1v14M12 1v14" stroke="currentColor" stroke-width="1.2" opacity=".7"/></svg>
+      NFS-e (Captura)
+    </div>
+    <div class="nav-item admin-only" data-page="nfe">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M2 2h12v12H2V2z" stroke="currentColor" stroke-width="1.2" opacity=".7"/><path d="M5 5h6M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.2" opacity=".7"/></svg>
+      NF-e (Captura)
+    </div>
+    <div class="nav-item admin-only" data-page="distribuicao">
+      <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M8 1l7 4v6l-7 4-7-4V5l7-4z" stroke="currentColor" stroke-width="1.2" opacity=".7"/><path d="M4 6l4 2 4-2M8 8v6" stroke="currentColor" stroke-width="1.2" opacity=".7"/></svg>
+      NF-e (Distribuição)
+    </div>
     <div class="nav-item" data-page="notificacoes">
       <svg class="nav-icon" fill="none" viewBox="0 0 16 16"><path d="M8 14A6 6 0 108 2a6 6 0 000 12zM8 4v4l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Notificações
@@ -87,7 +100,10 @@
     <div class="page on" id="pg-dashboard">
       <div class="ph">
         <div><div class="pt">Dashboard</div><div class="ps">Mês atual · tarefas por empresa</div></div>
-        <button class="btn btn-g btn-sm" onclick="loadDash()">↻ Atualizar</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-p btn-sm admin-only" id="btn-sync-meudanfe" onclick="syncMeuDanfe()">🔗 Sincronizar MeuDANFE</button>
+          <button class="btn btn-g btn-sm" onclick="loadDash()">↻ Atualizar</button>
+        </div>
       </div>
       <div class="cards" id="dash-cards"></div>
       <div class="cr">
@@ -131,8 +147,22 @@
     <!-- EXECUÇÕES -->
     <div class="page" id="pg-execucoes">
       <div class="ph">
-        <div><div class="pt">Execuções</div><div class="ps">Mês corrente</div></div>
+        <div>
+          <div class="pt">Execuções</div>
+          <div class="ps">Competência: <span id="competencia-label" style="color:var(--ac);font-weight:600">...</span></div>
+        </div>
       </div>
+
+      <!-- Controle de competência — visível apenas para admin -->
+      <div class="sec admin-only" style="padding:12px 16px;margin-bottom:0">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--mt);font-weight:500">Competência ativa:</span>
+          <input type="month" id="competencia-input" style="font-size:12px;padding:5px 8px;border-radius:7px;border:1px solid var(--bdr2);background:var(--surf2);color:var(--tx);outline:none"/>
+          <button class="btn btn-p btn-sm" onclick="salvarCompetencia()">Aplicar</button>
+          <span style="font-size:11px;color:var(--mt)">— define o mês de referência para cálculo de prazos e notificações</span>
+        </div>
+      </div>
+
       <div class="sec">
         <div class="sh" style="gap:8px;flex-wrap:wrap">
           <div class="fbar" style="flex:1">
@@ -246,7 +276,223 @@
       </div>
     </div>
 
-    
+    <!-- NFS-E -->
+    <div class="page" id="pg-nfse">
+      <div class="ph">
+        <div><div class="pt">NFS-e Nacional</div><div class="ps">Cofre de credenciais e captura automática</div></div>
+      </div>
+      
+      <!-- Sub-Abas Internas -->
+      <div style="display:flex;gap:20px;border-bottom:1px solid var(--bdr);margin-bottom:20px">
+        <div class="tab-item active" data-sub="cofre" onclick="switchNfseTab('cofre')">🔑 Cofre</div>
+        <div class="tab-item" data-sub="capturar" onclick="switchNfseTab('capturar')">▶ Capturar</div>
+        <div class="tab-item" data-sub="historico" onclick="switchNfseTab('historico')">📊 Histórico</div>
+      </div>
+
+      <!-- Seção: COFRE -->
+      <div id="nfse-sec-cofre" class="nfse-section">
+        <div class="sec">
+          <div class="sh">
+            <div class="st">Gerenciamento de Credenciais</div>
+            <button class="btn btn-p btn-sm" onclick="openNovoAcessoModal()">+ Novo Acesso</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="dtbl" id="nfse-cofre-tbl">
+              <thead><tr><th>Empresa</th><th>CNPJ</th><th>Usuário</th><th>Status</th><th>Última Alt.</th><th style="text-align:right">Ações</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seção: CAPTURAR -->
+      <div id="nfse-sec-capturar" class="nfse-section" style="display:none">
+        <div class="sec" style="max-width:600px">
+          <div class="sh"><div class="st">Nova Captura</div></div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="fg">
+              <label>Empresa</label>
+              <select id="nfse-cap-empresa"></select>
+            </div>
+            <div style="display:flex;gap:16px">
+              <div class="fg" style="flex:1">
+                <label>Tipo de Nota</label>
+                <div style="display:flex;gap:10px;margin-top:8px">
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="radio" name="nfse-tipo-nota" value="prestadas" checked> Prestadas</label>
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="radio" name="nfse-tipo-nota" value="tomadas"> Tomadas</label>
+                </div>
+              </div>
+              <div class="fg" style="flex:1">
+                <label>Tipo de Captura</label>
+                <div style="display:flex;gap:10px;margin-top:8px">
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="radio" name="nfse-tipo-cap" value="lista" checked> Lista</label>
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="radio" name="nfse-tipo-cap" value="xml"> XML</label>
+                  <label style="display:flex;align-items:center;gap:5px;font-size:13px"><input type="radio" name="nfse-tipo-cap" value="pdf"> PDF</label>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px">
+              <div class="fg" style="flex:1">
+                <label>Data Início</label>
+                <input type="date" id="nfse-cap-inicio">
+              </div>
+              <div class="fg" style="flex:1">
+                <label>Data Fim</label>
+                <input type="date" id="nfse-cap-fim">
+              </div>
+            </div>
+            <div class="fg" id="nfse-zip-container" style="display:none">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                <input type="checkbox" id="nfse-cap-zip" checked> Gerar arquivo .ZIP compactado
+              </label>
+            </div>
+            <button class="btn btn-p" onclick="executarCaptura()" id="btn-nfse-exec">▶ Iniciar Captura</button>
+          </div>
+        </div>
+        
+        <div id="nfse-resultado-container" class="sec" style="display:none;margin-top:20px">
+          <div class="sh"><div class="st">Resultado da Captura</div></div>
+          <div id="nfse-res-info" style="margin-bottom:15px;font-size:14px"></div>
+          <div style="overflow-x:auto" id="nfse-res-lista-wrapper">
+            <table class="dtbl" id="nfse-res-tbl">
+              <thead><tr><th>Nota</th><th>Data</th><th>Tomador/Prestador</th><th>CNPJ/CPF</th><th>Valor</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="nfse-res-download-wrapper" style="display:none;text-align:center;padding:40px">
+             <div style="font-size:40px;margin-bottom:15px">📁</div>
+             <a id="nfse-res-link" class="btn btn-g" href="#" target="_blank">Baixar Arquivo ZIP</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seção: HISTÓRICO -->
+      <div id="nfse-sec-historico" class="nfse-section" style="display:none">
+        <div class="sec">
+          <div class="sh"><div class="st">Últimas Capturas</div></div>
+          <div style="overflow-x:auto">
+            <table class="dtbl" id="nfse-hist-tbl">
+              <thead><tr><th>Data</th><th>Empresa</th><th>Período</th><th>Tipo</th><th>Status</th><th>Notas</th><th style="text-align:right">Ações</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NF-E (MEUDANFE) -->
+    <div class="page" id="pg-nfe">
+      <div class="ph">
+        <div><div class="pt">NF-e / CT-e (MeuDANFE)</div><div class="ps">Automação de captura e organização de XML/PDF</div></div>
+        <button class="btn btn-p btn-sm" id="btn-nfe-sync" onclick="syncMeuDanfe()">🔗 Sincronizar Agora</button>
+      </div>
+
+      <div class="sec">
+        <div class="sh"><div class="st">Status da Automação</div></div>
+        <div class="sb">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <div style="background:var(--surf2);padding:15px;border-radius:10px;border:1px solid var(--bdr)">
+              <div style="font-size:11px;color:var(--mt);text-transform:uppercase;margin-bottom:8px">Manifesto Automático</div>
+              <div style="font-size:14px;font-weight:600;color:var(--green)">ATIVO (4 Certificados)</div>
+              <div style="font-size:11px;color:var(--mt);margin-top:4px">Notas são capturadas em tempo real pelo MeuDANFE.</div>
+            </div>
+            <div style="background:var(--surf2);padding:15px;border-radius:10px;border:1px solid var(--bdr)">
+              <div style="font-size:11px;color:var(--mt);text-transform:uppercase;margin-bottom:8px">Organização de Arquivos</div>
+              <div style="font-size:14px;font-weight:600">PASTA: /downloads/fiscal/</div>
+              <div style="font-size:11px;color:var(--mt);margin-top:4px">Estrutura: Competência / CNPJ / (XML + PDF)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sh"><div class="st">Logs de Sincronização</div></div>
+        <div class="sb" id="nfe-sync-logs" style="font-family:'JetBrains Mono',monospace;font-size:11px;max-height:300px;overflow-y:auto;color:var(--mt);line-height:1.6">
+          Aguardando início...
+        </div>
+      </div>
+    </div>
+
+    <!-- NF-e DISTRIBUIÇÃO -->
+    <div class="page" id="pg-distribuicao">
+      <div class="ph">
+        <div><div class="pt">NF-e / CT-e (Distribuição SEFAZ)</div><div class="ps">Consulta automática de todas as notas emitidas para cada empresa via NFeDistribuicaoDFe</div></div>
+      </div>
+
+      <!-- Certificados Digitais -->
+      <div class="sec">
+        <div class="sh">
+          <div class="st">Certificados Digitais A1</div>
+          <button class="btn btn-g btn-sm" onclick="loadDistribuicaoCerts()">↻ Atualizar</button>
+        </div>
+        <div class="sb" id="dist-certificados-lista">Carregando...</div>
+      </div>
+
+      <!-- Status por empresa -->
+      <div class="sec">
+        <div class="sh">
+          <div class="st">Status por Empresa</div>
+          <button class="btn btn-g btn-sm" onclick="loadDistribuicaoStatus()">↻ Atualizar</button>
+        </div>
+        <div class="sb" id="distribuicao-status">Carregando...</div>
+      </div>
+
+      <!-- Modal upload certificado (distribuição) -->
+      <div id="modal-cert-dist" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+        <div style="background:var(--surf1);border:1px solid var(--bdr);border-radius:12px;padding:28px;width:420px;max-width:95vw">
+          <div style="font-weight:700;font-size:15px;margin-bottom:18px">Upload de Certificado A1</div>
+          <input type="hidden" id="dist-cert-empresa-id" />
+          <div style="margin-bottom:12px">
+            <label style="font-size:11px;color:var(--mt);text-transform:uppercase;display:block;margin-bottom:6px">Arquivo .pfx</label>
+            <input type="file" id="dist-cert-pfx-file" accept=".pfx,.p12" class="form-control" style="font-size:13px" />
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:11px;color:var(--mt);text-transform:uppercase;display:block;margin-bottom:6px">Senha do certificado</label>
+            <input type="password" id="dist-cert-senha" class="form-control" placeholder="••••••••" style="font-size:13px" />
+          </div>
+          <div style="margin-bottom:20px">
+            <label style="font-size:11px;color:var(--mt);text-transform:uppercase;display:block;margin-bottom:6px">Validade (opcional)</label>
+            <input type="date" id="dist-cert-validade" class="form-control" style="font-size:13px" />
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-g btn-sm" onclick="fecharModalCertDist()">Cancelar</button>
+            <button class="btn btn-p btn-sm" onclick="salvarCertificadoDist()">💾 Salvar Certificado</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configuração e disparo -->
+      <div class="sec">
+        <div class="sh"><div class="st">Sincronizar</div></div>
+        <div class="sb">
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px">
+            <div>
+              <label style="font-size:11px;color:var(--mt);text-transform:uppercase;display:block;margin-bottom:6px">Empresa (vazio = todas)</label>
+              <select id="dist-empresa-id" class="form-control" style="font-size:13px;min-width:220px">
+                <option value="">— Todas com certificado —</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--mt);text-transform:uppercase;display:block;margin-bottom:6px">Competência</label>
+              <input type="month" id="dist-competencia" class="form-control" style="font-size:13px;width:160px" />
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-p btn-sm" id="btn-dist-sync" onclick="syncDistribuicao(false)">🔄 Sincronizar</button>
+              <button class="btn btn-sm" style="background:var(--red);color:#fff" onclick="syncDistribuicao(true)" title="Reprocessa do NSU 0 — baixa TODOS os documentos novamente">⚠️ Sync Completa</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs -->
+      <div class="sec">
+        <div class="sh"><div class="st">Logs</div></div>
+        <div class="sb" id="dist-logs" style="font-family:'JetBrains Mono',monospace;font-size:11px;max-height:350px;overflow-y:auto;color:var(--mt);line-height:1.6">
+          Aguardando...
+        </div>
+      </div>
+    </div>
+
     <!-- NOTIFICAÇÕES -->
     <div class="page" id="pg-notificacoes">
       <div class="ph">
@@ -270,7 +516,27 @@
             <label>Nome do Escritório</label>
             <input id="cfg-nome-escritorio" placeholder="Ex: Escritório de Contabilidade"/>
           </div>
+          <div class="fg">
+            <label>Pasta Global de Downloads (NFS-e)</label>
+            <input id="cfg-pasta-download" placeholder="Ex: C:\Notas ou /Users/usuario/Downloads"/>
+            <small style="color:var(--mt);font-size:11px">Todas as capturas serão organizadas dentro desta pasta.</small>
+          </div>
           <button class="btn btn-p" onclick="saveConfiguracoes()" style="align-self:flex-start">Salvar</button>
+        </div>
+      </div>
+      <div class="sec" style="margin-top:8px">
+        <div class="sh"><div class="st">Competência</div></div>
+        <div class="sb" style="display:flex;flex-direction:column;gap:12px;max-width:400px">
+          <div style="font-size:12px;color:var(--mt);line-height:1.6">
+            Define o mês de referência para cálculo de prazos e notificações de atraso.<br>
+            Ao fechar um mês, a competência avança automaticamente para o mês seguinte.<br>
+            Use este controle para corrigir manualmente caso necessário.
+          </div>
+          <div class="fg">
+            <label>Competência ativa</label>
+            <input type="month" id="competencia-input-cfg" style="max-width:200px"/>
+          </div>
+          <button class="btn btn-p" onclick="salvarCompetenciaCfg()" style="align-self:flex-start">Aplicar competência</button>
         </div>
       </div>
     </div>
@@ -290,6 +556,6 @@
 <div class="toast" id="toast"></div>
 
 <script src="/js/api.js"></script>
-<script src="/js/app.js"></script>
+<script src="/js/app.js?v=2"></script>
 </body>
 </html>

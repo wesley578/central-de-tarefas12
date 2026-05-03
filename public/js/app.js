@@ -8,6 +8,11 @@ let histPage = 1;
 let execTotal = 0;
 let histTotal = 0;
 const PAGE_LIMIT = 50;
+const mTitle = document.getElementById('m-title');
+const mBody = document.getElementById('m-body');
+const mFoot = document.getElementById('m-foot');
+const closeModal = () => document.getElementById('ov').classList.add('hide');
+const openModal = () => document.getElementById('ov').classList.remove('hide');
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.nav-item').forEach(el => {
@@ -24,7 +29,11 @@ document.querySelectorAll('.nav-item').forEach(el => {
       historico: loadHistPage,
       empresas: loadEmpresas,
       tarefas: loadTarefas,
-      configuracoes: () => {},
+      nfse: () => switchNfseTab('cofre'),
+      nfe: () => {},
+      sefaz: () => { loadCertificados(); initSefazForm(); },
+      distribuicao: () => { loadDistribuicaoCerts(); loadDistribuicaoStatus(); initDistribuicaoForm(); },
+      configuracoes: loadConfiguracoes,
       notificacoes: loadNotificacoes
     })[pg]?.();
   });
@@ -91,6 +100,43 @@ async function loadDash() {
     : `<tr><td colspan="6" class="empty">Nenhuma atividade recente.</td></tr>`;
 }
 
+// --- MEUDANFE SYNC ---
+async function syncMeuDanfe() {
+  const btn = document.getElementById('btn-sync-meudanfe');
+  const btn2 = document.getElementById('btn-nfe-sync');
+  const logCont = document.getElementById('nfe-sync-logs');
+  
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Sincronizando...'; }
+  if (btn2) { btn2.disabled = true; btn2.innerText = 'Sincronizando...'; }
+  if (logCont) logCont.innerHTML = '<div>⏳ Iniciando extração do painel MeuDANFE...</div>';
+
+  try {
+    toast('🚀 Iniciando sincronização com MeuDANFE...', 'var(--p)');
+    const res = await api('/fiscal/meudanfe/sync', 'POST');
+    
+    if (res.sucesso) {
+      toast(`✅ Sucesso! ${res.mensagem}`, 'var(--green)');
+      
+      if (logCont && res.detalhes) {
+        logCont.innerHTML = res.detalhes.map(l => `<div>${l}</div>`).join('');
+      }
+
+      loadDash();
+      if (document.getElementById('pg-execucoes').classList.contains('on')) loadExec();
+    } else {
+      toast('⚠️ Falha na sincronização: ' + (res.erro || 'Erro desconhecido'), 'var(--yellow)');
+      if (logCont) logCont.innerHTML += `<div style="color:var(--red)">❌ Erro: ${res.erro}</div>`;
+    }
+  } catch (e) {
+    toast('❌ Erro: ' + (e.erro || e.message || 'Falha na conexão'), 'var(--red)');
+    if (logCont) logCont.innerHTML += `<div style="color:var(--red)">❌ Erro Crítico: ${e.message}</div>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+    if (btn2) { btn2.disabled = false; btn2.innerText = '🔗 Sincronizar Agora'; }
+  }
+}
+
 // ─── MATRIX ───────────────────────────────────────────────────────────────────
 async function loadMatrix() {
   const {empresas,tarefas,matrix} = await api('/dashboard/matrix');
@@ -120,7 +166,49 @@ async function fillExecFilters() {
   const cur=sel.value;
   sel.innerHTML='<option value="">Todas as empresas</option>'+es.map(e=>`<option value="${e.id}" ${cur==e.id?'selected':''}>${e.nome}</option>`).join('');
 }
+
+async function loadCompetencia() {
+  try {
+    const { competencia_ativa } = await api('/competencia');
+    // Topbar badge
+    const badge = document.getElementById('competencia-badge');
+    if (badge) badge.textContent = `📅 ${fmes(competencia_ativa)}`;
+    // Execucoes inline label
+    const label = document.getElementById('competencia-label');
+    if (label) label.textContent = fmes(competencia_ativa);
+    // Execucoes input control
+    const input = document.getElementById('competencia-input');
+    if (input) input.value = competencia_ativa;
+    // Configuracoes input
+    const inputCfg = document.getElementById('competencia-input-cfg');
+    if (inputCfg) inputCfg.value = competencia_ativa;
+  } catch(e) {}
+}
+
+async function salvarCompetencia() {
+  const val = document.getElementById('competencia-input').value;
+  if (!val) return toast('Selecione uma competência','var(--red)');
+  try {
+    await api('/competencia', 'PUT', { competencia_ativa: val });
+    toast(`✓ Competência alterada para ${fmes(val)}`);
+    await loadCompetencia();
+    loadNotificacoes();
+  } catch(e) { toast(e.erro||'Erro ao salvar competência','var(--red)'); }
+}
+
+async function salvarCompetenciaCfg() {
+  const val = document.getElementById('competencia-input-cfg').value;
+  if (!val) return toast('Selecione uma competência','var(--red)');
+  try {
+    await api('/competencia', 'PUT', { competencia_ativa: val });
+    toast(`✓ Competência alterada para ${fmes(val)}`);
+    await loadCompetencia();
+    loadNotificacoes();
+  } catch(e) { toast(e.erro||'Erro ao salvar competência','var(--red)'); }
+}
+
 async function loadExec() {
+  await loadCompetencia();
   const emp=document.getElementById('fe-emp').value;
   const sta=document.getElementById('fe-sta').value;
   const cat=document.getElementById('fe-cat').value;
@@ -174,7 +262,10 @@ async function loadHistPage() {
         <div class="ccp" style="color:${pctColor(r.percentual)}">${r.percentual}%</div>
       </div>
       <div class="ccb"><div class="ccbf" style="width:${r.percentual}%;background:${pctColor(r.percentual)}"></div></div>
-      <div class="ccs"><span>✓ ${r.concluidas}</span><span>· ${r.pendentes}</span>${r.bloqueadas?`<span>✕ ${r.bloqueadas}</span>`:''}</div>
+      <div class="ccs">
+        <span>✓ ${r.concluidas}</span><span>· ${r.pendentes}</span>${r.bloqueadas?`<span>✕ ${r.bloqueadas}</span>`:''}
+        <button class="btn btn-warn btn-sm" style="margin-left:auto" onclick="event.stopPropagation();reabrirMes('${r.mes_referencia}')">↩ Reabrir</button>
+      </div>
     </div>
   `).join('');
 
@@ -238,10 +329,29 @@ async function confirmarFecharMes() {
   try {
     const r = await api('/mes/fechar','POST',{mes_referencia:mes});
     closeModal();
-    toast(`✓ ${fmes(mes)} arquivado! ${r.total} registros salvos.`);
+    toast(`✓ ${fmes(mes)} arquivado! Competência avançada para ${fmes(r.competencia_ativa)}.`);
     loadDash();
-  loadNotificacoes();
-  } catch(e){ toast(e.erro||'Erro ao fechar mês','var(--red)'); }
+    loadCompetencia();
+    loadNotificacoes();
+  } catch(e) {
+    if (e.status === 409 || (e.erro && e.erro.includes('já foi fechado'))) {
+      toast(`⚠️ ${e.erro}`, 'var(--yellow)');
+    } else {
+      toast(e.erro||'Erro ao fechar mês','var(--red)');
+    }
+  }
+}
+
+async function reabrirMes(mes_referencia) {
+  if (!confirm(`Reabrir o mês ${fmes(mes_referencia)}?\n\nOs registros voltarão para Execuções e o mês será removido do Histórico.`)) return;
+  try {
+    const r = await api('/mes/reabrir','POST',{mes_referencia});
+    toast(`↩ ${fmes(mes_referencia)} reaberto! Competência restaurada para ${fmes(r.competencia_ativa)}.`);
+    loadHistPage();
+    loadDash();
+    loadCompetencia();
+    loadNotificacoes();
+  } catch(e) { toast(e.erro||'Erro ao reabrir mês','var(--red)'); }
 }
 
 // ─── EMPRESAS ─────────────────────────────────────────────────────────────────
@@ -336,6 +446,7 @@ async function saveEmpresa(id) {
     else    await api('/empresas','POST',{nome,cnpj,regime,tarefas_ids});
     closeModal(); toast(id?'Empresa atualizada!':'Empresa criada!');
     loadEmpresas();
+    if(typeof loadNfseCofre === 'function') loadNfseCofre();
   } catch(e){ toast(e.erro||'Erro','var(--red)'); }
 }
 async function delEmpresa(id,nome) {
@@ -482,7 +593,7 @@ async function saveHist(id) {
   catch(e){ toast(e.erro||'Erro','var(--red)'); }
 }
 
-function closeModal(){ document.getElementById('ov').classList.add('hide'); }
+
 
 // ─── Configurações e CSV ──────────────────────────────────────────────────────
 async function initApp() {
@@ -511,18 +622,34 @@ async function initApp() {
     const cfg = await api('/configuracoes');
     document.querySelector('.logo-sub').textContent = cfg.nome_escritorio;
     const cfgInput = document.getElementById('cfg-nome-escritorio');
-    if (cfgInput) cfgInput.value = cfg.nome_escritorio;
+    if (cfgInput) cfgInput.value = cfg.nome_escritorio || '';
+    const cfgPasta = document.getElementById('cfg-pasta-download');
+    if (cfgPasta) cfgPasta.value = cfg.pasta_download_padrao || '';
   } catch(e) {}
   
   loadDash();
   loadNotificacoes();
+  loadCompetencia();
+}
+
+async function loadConfiguracoes() {
+  try {
+    const cfg = await api('/configuracoes');
+    const cfgInput = document.getElementById('cfg-nome-escritorio');
+    if (cfgInput) cfgInput.value = cfg.nome_escritorio || '';
+    const cfgPasta = document.getElementById('cfg-pasta-download');
+    if (cfgPasta) cfgPasta.value = cfg.pasta_download_padrao || '';
+  } catch(e) {
+    console.error('Erro ao carregar configurações', e);
+  }
 }
 
 async function saveConfiguracoes() {
   const nome_escritorio = document.getElementById('cfg-nome-escritorio').value.trim();
+  const pasta_download_padrao = document.getElementById('cfg-pasta-download').value.trim();
   if (!nome_escritorio) return toast('Nome obrigatório', 'var(--red)');
   try {
-    await api('/configuracoes', 'PUT', { nome_escritorio });
+    await api('/configuracoes', 'PUT', { nome_escritorio, pasta_download_padrao });
     document.querySelector('.logo-sub').textContent = nome_escritorio;
     toast('Configurações salvas!');
   } catch(e) { toast(e.erro||'Erro', 'var(--red)'); }
@@ -543,7 +670,7 @@ function importCsv(event) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     const text = e.target.result;
-    const lines = text.split('\\n').map(l => l.trim()).filter(l => l);
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
     if (lines.length <= 1) return toast('O CSV está vazio ou inválido', 'var(--red)');
     
     const empresas = [];
@@ -610,16 +737,25 @@ async function loadNotificacoes() {
       return;
     }
 
-    list.innerHTML = alerts.map(a => `
-      <div style="background:rgba(240,90,90,.08);border:1px solid rgba(240,90,90,.2);border-radius:8px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px">
-        <div style="font-size:20px">⚠️</div>
-        <div>
-          <div style="font-weight:600;font-size:13px;color:var(--red);margin-bottom:2px">Tarefa Atrasada</div>
-          <div style="font-size:12px;color:var(--mt)">A tarefa <b>${a.tarefa_nome}</b> da empresa <b>${a.empresa_nome}</b> venceu no dia <b>${a.dia_vencimento.toString().padStart(2,'0')}</b> e ainda está Pendente/Em Andamento.</div>
-          <button class="btn btn-sm btn-g" style="margin-top:8px" onclick="goExec(${a.empresa_id})">Ir para Execuções</button>
+    list.innerHTML = alerts.map(a => {
+      const isAtrasada = a.atrasada === 1;
+      const color = isAtrasada ? 'var(--red)' : 'var(--p)';
+      const bg = isAtrasada ? 'rgba(240,90,90,.08)' : 'rgba(79,127,255,.08)';
+      const bdr = isAtrasada ? 'rgba(240,90,90,.2)' : 'rgba(79,127,255,.2)';
+      const titulo = isAtrasada ? 'Tarefa Atrasada' : 'Próxima ao Vencimento';
+      const icone = isAtrasada ? '⚠️' : '⏳';
+
+      return `
+        <div style="background:${bg};border:1px solid ${bdr};border-radius:8px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px">
+          <div style="font-size:20px">${icone}</div>
+          <div>
+            <div style="font-weight:600;font-size:13px;color:${color};margin-bottom:2px">${titulo} ${!isAtrasada ? '(3 dias)' : ''}</div>
+            <div style="font-size:12px;color:var(--mt)">A tarefa <b>${a.tarefa_nome}</b> da empresa <b>${a.empresa_nome}</b> vence no dia <b>${a.dia_vencimento.toString().padStart(2,'0')}</b> e ainda está Pendente.</div>
+            <button class="btn btn-sm btn-g" style="margin-top:8px" onclick="goExec(${a.id})">Ir para Execuções</button>
+          </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   } catch(e) {
     console.error(e);
   }
@@ -649,8 +785,12 @@ async function doLogin() {
     try {
       const cfg = await api('/configuracoes');
       document.querySelector('.logo-sub').textContent = cfg.nome_escritorio;
+      
       const cfgInput = document.getElementById('cfg-nome-escritorio');
-      if (cfgInput) cfgInput.value = cfg.nome_escritorio;
+      if (cfgInput) cfgInput.value = cfg.nome_escritorio || '';
+      
+      const cfgPasta = document.getElementById('cfg-pasta-download');
+      if (cfgPasta) cfgPasta.value = cfg.pasta_download_padrao || '';
     } catch(e) {}
     loadDash();
     loadNotificacoes();
@@ -663,4 +803,551 @@ async function doLogin() {
 function doLogout() {
   localStorage.removeItem('token');
   window.location.reload();
+}
+
+// ─── NFS-E ────────────────────────────────────────────────────────────────────
+function switchNfseTab(tab) {
+  document.querySelectorAll('.tab-item').forEach(i => i.classList.remove('active'));
+  document.querySelector(`.tab-item[data-sub="${tab}"]`).classList.add('active');
+  document.querySelectorAll('.nfse-section').forEach(s => s.style.display = 'none');
+  document.getElementById(`nfse-sec-${tab}`).style.display = 'block';
+  if (tab === 'cofre') loadNfseCofre();
+  if (tab === 'capturar') loadNfseEmpresas();
+  if (tab === 'historico') loadNfseHistorico();
+}
+
+async function loadNfseCofre() {
+  const data = await api('/cofre-nfse');
+  document.querySelector('#nfse-cofre-tbl tbody').innerHTML = data.map(e => `
+    <tr>
+      <td><b>${e.nome}</b></td>
+      <td>${e.cnpj || '—'}</td>
+      <td>${e.usuario || e.cnpj || '—'}</td>
+      <td>${e.configurado ? '<span class="badge b-ok">Configurado</span>' : '<span class="badge b-pe">Sem credencial</span>'}</td>
+      <td>${fdate(e.atualizado_em?.split(' ')[0])}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-g btn-sm" onclick="openCofreModal(${e.id}, '${e.nome}', '${e.usuario||e.cnpj||''}')">🔑 Configurar</button>
+        ${e.configurado ? `<button class="btn btn-d btn-sm" onclick="deleteCofre(${e.id})">Remover</button>` : ''}
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" class="empty">Nenhuma empresa encontrada.</td></tr>';
+}
+
+function openCofreModal(id, nome, usuario) {
+  mTitle.innerText = 'Configurar Credencial: ' + nome;
+  mBody.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="fg">
+        <label>Usuário (CNPJ com pontuação)</label>
+        <input type="text" id="cofre-usuario" value="${usuario}" placeholder="XX.XXX.XXX/XXXX-XX">
+      </div>
+      <div class="fg">
+        <label>Senha do Portal NFS-e</label>
+        <input type="password" id="cofre-senha" placeholder="••••••••">
+      </div>
+    </div>
+  `;
+  mFoot.innerHTML = `
+    <button class="btn btn-g" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-p" onclick="saveCofre(${id})">Salvar no Cofre</button>
+  `;
+  openModal();
+}
+
+async function saveCofre(empresaId) {
+  const usuario = document.getElementById('cofre-usuario').value;
+  const senha = document.getElementById('cofre-senha').value;
+  if (!usuario || !senha) return toast('Preencha Usuário e Senha.');
+  
+  try {
+    await api('/cofre-nfse/' + empresaId, 'PUT', { usuario, senha });
+    toast('Credencial salva com sucesso!');
+    closeModal();
+    loadNfseCofre();
+  } catch (e) {
+    toast('Erro ao salvar credencial: ' + e.message);
+  }
+}
+
+async function deleteCofre(id) {
+  if (!confirm('Deseja realmente remover a credencial desta empresa?')) return;
+  await api('/cofre-nfse/' + id, 'DELETE');
+  toast('Credencial removida.');
+  loadNfseCofre();
+}
+
+async function loadNfseEmpresas() {
+  const data = await api('/cofre-nfse');
+  const configured = data.filter(e => e.configurado);
+  const sel = document.getElementById('nfse-cap-empresa');
+  
+  let options = configured.map(e => `<option value="${e.id}" data-cnpj="${e.cnpj||''}">${e.nome}</option>`).join('');
+  if (configured.length > 1) {
+    options = `<option value="all" style="font-weight:bold;color:var(--p)">✨ TODAS AS EMPRESAS (${configured.length})</option>` + options;
+  }
+  
+  sel.innerHTML = options;
+  if (configured.length === 0) sel.innerHTML = '<option value="">Nenhuma empresa configurada no Cofre</option>';
+
+  // ── Preenche datas com o mês atual (1º ao último dia) ──────────────────────
+  const hoje = new Date();
+  const ano  = hoje.getFullYear();
+  const mes  = String(hoje.getMonth() + 1).padStart(2, '0');
+  const ultimoDia = new Date(ano, hoje.getMonth() + 1, 0).getDate();
+
+  const inputInicio = document.getElementById('nfse-cap-inicio');
+  const inputFim    = document.getElementById('nfse-cap-fim');
+
+  if (!inputInicio.value) inputInicio.value = `${ano}-${mes}-01`;
+  if (!inputFim.value)    inputFim.value    = `${ano}-${mes}-${String(ultimoDia).padStart(2, '0')}`;
+
+  // ── Regra: ambas as datas devem estar dentro do mesmo mês ─────────────────
+  function corrigirMes(origem, destino, posicao) {
+    const val = origem.value;
+    if (!val) return;
+    const [y, m] = val.split('-');
+    const ult = new Date(parseInt(y), parseInt(m), 0).getDate();
+    // Ajusta destino para o mesmo ano/mês
+    if (posicao === 'inicio') {
+      // Ao alterar início, ajusta fim para o último dia do mesmo mês
+      destino.value = `${y}-${m}-${String(ult).padStart(2, '0')}`;
+      destino.min = `${y}-${m}-01`;
+      destino.max = `${y}-${m}-${String(ult).padStart(2, '0')}`;
+    } else {
+      // Ao alterar fim, ajusta início para o primeiro dia do mesmo mês
+      destino.value = `${y}-${m}-01`;
+      destino.min = `${y}-${m}-01`;
+      destino.max = `${y}-${m}-${String(ult).padStart(2, '0')}`;
+    }
+    // Define limites no próprio campo alterado
+    origem.min = `${y}-${m}-01`;
+    origem.max = `${y}-${m}-${String(ult).padStart(2, '0')}`;
+  }
+
+  // Aplica limites iniciais
+  corrigirMes(inputInicio, inputFim, 'inicio');
+
+  // Remove eventos antigos e adiciona novos
+  const novoInicio = inputInicio.cloneNode(true);
+  const novoFim    = inputFim.cloneNode(true);
+  inputInicio.parentNode.replaceChild(novoInicio, inputInicio);
+  inputFim.parentNode.replaceChild(novoFim, inputFim);
+
+  novoInicio.addEventListener('change', () => corrigirMes(novoInicio, novoFim, 'inicio'));
+  novoFim.addEventListener('change',    () => corrigirMes(novoFim, novoInicio, 'fim'));
+
+  // Show/Hide ZIP toggle based on type
+  document.querySelectorAll('input[name="nfse-tipo-cap"]').forEach(r => {
+    r.addEventListener('change', (e) => {
+      document.getElementById('nfse-zip-container').style.display = e.target.value === 'lista' ? 'none' : 'block';
+    });
+  });
+}
+
+
+async function executarCaptura() {
+  const btn = document.getElementById('btn-nfse-exec');
+  const empresa_id = document.getElementById('nfse-cap-empresa').value;
+  const tipo_nota = document.querySelector('input[name="nfse-tipo-nota"]:checked').value;
+  const tipo_captura = document.querySelector('input[name="nfse-tipo-cap"]:checked').value;
+  const data_inicio = document.getElementById('nfse-cap-inicio').value;
+  const data_fim = document.getElementById('nfse-cap-fim').value;
+
+  if (!empresa_id || !data_inicio || !data_fim) return toast('Preencha os campos obrigatórios.');
+
+  const d_ini = data_inicio.split('-').reverse().join('/');
+  const d_fim = data_fim.split('-').reverse().join('/');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loader-nfse"></span> Iniciando...';
+  document.getElementById('nfse-resultado-container').style.display = 'none';
+
+  // ── MODO BATCH (Múltiplas Empresas) ────────────────────────────────────────
+  if (empresa_id === 'all') {
+    try {
+      const data = await api('/cofre-nfse');
+      const empresas = data.filter(e => e.configurado).map(e => ({ cnpj: e.cnpj, empresaId: e.id }));
+      
+      const res = await api('/nfse/capturar-batch', 'POST', {
+        dataInicio: d_ini,
+        dataFim: d_fim,
+        tipo: `${tipo_nota}:${tipo_captura}`,
+        empresas
+      });
+
+      toast(`✅ ${res.total} empresas enfileiradas com sucesso!`);
+      btn.disabled = false;
+      btn.innerHTML = '▶ Iniciar Captura';
+      
+      // Muda para a aba de histórico para acompanhar o progresso de todos
+      setTimeout(() => switchNfseTab('historico'), 1500);
+      return;
+    } catch (e) {
+      toast('Erro no lote: ' + (e.message || e.erro), 'var(--red)');
+      btn.disabled = false;
+      btn.innerHTML = '▶ Iniciar Captura';
+      return;
+    }
+  }
+
+  // ── MODO INDIVIDUAL ────────────────────────────────────────────────────────
+  const empresaOpt = document.getElementById('nfse-cap-empresa');
+  const cnpj = empresaOpt.options[empresaOpt.selectedIndex]?.dataset?.cnpj || '';
+
+  try {
+    // v4: retorna jobId imediatamente
+    const res = await api('/nfse/capturar', 'POST', {
+      cnpj,
+      tipo: `${tipo_nota}:${tipo_captura}`,
+      dataInicio: d_ini,
+      dataFim: d_fim,
+      empresaId: parseInt(empresa_id),
+    });
+
+    if (!res.jobId) throw new Error(res.erro || 'Resposta inesperada do servidor.');
+
+    toast('Captura enfileirada! Aguardando processamento...');
+    btn.innerHTML = '<span class="loader-nfse"></span> Processando...';
+
+    // Polling a cada 3s até concluir ou dar erro
+    await new Promise((resolve, reject) => {
+      const interval = setInterval(async () => {
+        try {
+          const job = await api(`/nfse/jobs/${res.jobId}`);
+          if (job.status === 'concluido') {
+            clearInterval(interval);
+            toast('✅ Captura concluída!');
+            exibirResultadoNfse(job.resultado || {}, tipo_captura, res.jobId);
+            resolve();
+
+          } else if (job.status === 'erro') {
+            clearInterval(interval);
+            reject(new Error(job.erro || 'Falha no processamento.'));
+          }
+        } catch (pollErr) {
+          clearInterval(interval);
+          reject(pollErr);
+        }
+      }, 3000);
+    });
+
+  } catch (e) {
+    toast('Erro na captura: ' + (e.message || e.erro));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶ Iniciar Captura';
+  }
+}
+
+
+
+function exibirResultadoNfse(res, tipo, jobId) {
+  const container = document.getElementById('nfse-resultado-container');
+  const info = document.getElementById('nfse-res-info');
+  const listWrapper = document.getElementById('nfse-res-lista-wrapper');
+  const downloadWrapper = document.getElementById('nfse-res-download-wrapper');
+  
+  container.style.display = 'block';
+  const totalNotas = res.total_notas ?? 0;
+  const valorTotal = res.valor_total ?? 0;
+  info.innerHTML = `<b>Total de notas:</b> ${totalNotas}${valorTotal > 0 ? ` | <b>Valor Total:</b> R$ ${valorTotal.toLocaleString('pt-BR', {minimumFractionDigits:2})}` : ''}`;
+
+  if (tipo === 'lista') {
+    listWrapper.style.display = 'block';
+    downloadWrapper.style.display = 'none';
+    const notas = Array.isArray(res.notas) ? res.notas : [];
+    document.querySelector('#nfse-res-tbl tbody').innerHTML = notas.length
+      ? notas.map(n => `
+        <tr>
+          <td>${n.numero}</td>
+          <td>${n.data_emissao}</td>
+          <td>${n.tomador_prestador}</td>
+          <td>${n.cnpj_cpf}</td>
+          <td>R$ ${(n.valor||0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+        </tr>
+      `).join('')
+      : '<tr><td colspan="5" class="empty">Nenhuma nota encontrada.</td></tr>';
+  } else {
+    listWrapper.style.display = 'none';
+    downloadWrapper.style.display = 'block';
+    const link = document.getElementById('nfse-res-link');
+    // v4: usa o jobId para gerar o link via rota de token
+    const idParaDownload = res.capturaId || res.id || jobId;
+    link.onclick = (e) => {
+      e.preventDefault();
+      downloadZip(idParaDownload);
+    };
+    link.href = '#';
+  }
+  
+  container.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function downloadZip(id) {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`/api/nfse/gerar-link/${id}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (data.url) {
+      window.open(data.url, '_blank');
+    } else {
+      alert('Erro ao gerar link de download: ' + (data.erro || 'Desconhecido'));
+    }
+  } catch (e) {
+    console.error('Erro no download:', e);
+    alert('Erro na conexão com o servidor.');
+  }
+}
+
+async function loadNfseHistorico() {
+  const data = await api('/nfse/capturas');
+  document.querySelector('#nfse-hist-tbl tbody').innerHTML = data.map(c => `
+    <tr>
+      <td style="font-size:11px">${fdate(c.capturado_em.split(' ')[0])}</td>
+      <td><b>${c.empresa_nome}</b></td>
+      <td style="font-size:11px">${c.data_inicio} - ${c.data_fim}</td>
+      <td><span class="ctag">${c.tipo_nota.toUpperCase()} (${c.tipo_captura.toUpperCase()})</span></td>
+      <td>${c.status === 'concluida' ? '<span class="badge b-ok">Sucesso</span>' : '<span class="badge b-bl">Erro</span>'}</td>
+      <td>${c.total_notas}</td>
+      <td style="text-align:right">
+        ${c.arquivo_zip ? `<button class="btn btn-g btn-sm" onclick="downloadZip(${c.id})">📥 Download ZIP</button>` : '—'}
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" class="empty">Nenhuma captura realizada ainda.</td></tr>';
+}
+
+function openNovoAcessoModal() {
+  mTitle.innerText = 'Adicionar Novo Acesso NFS-e';
+  mBody.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="background:rgba(79,127,255,.05);padding:12px;border-radius:8px;font-size:12px;color:var(--mt);border:1px solid rgba(79,127,255,.1)">
+        Este cadastro criará a empresa no sistema e salvará as credenciais de acesso ao portal NFS-e simultaneamente.
+      </div>
+      <div class="fg">
+        <label>Nome da Empresa (Razão Social)</label>
+        <input type="text" id="na-nome" placeholder="Ex: Minha Empresa LTDA">
+      </div>
+      <div class="fg">
+        <label>CNPJ (Usuário NFS-e)</label>
+        <input type="text" id="na-cnpj" placeholder="XX.XXX.XXX/XXXX-XX">
+      </div>
+      <div class="fg">
+        <label>Senha do Portal NFS-e</label>
+        <input type="password" id="na-senha" placeholder="••••••••">
+      </div>
+      <div class="fg">
+        <label>Regime Tributário</label>
+        <select id="na-reg">
+          ${REGIMES.map(r=>`<option value="${r}">${r}</option>`).join('')}
+          <option value="">Não informado</option>
+        </select>
+      </div>
+    </div>
+  `;
+  mFoot.innerHTML = `
+    <button class="btn btn-g" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-p" onclick="saveNovoAcesso()">Salvar e Configurar</button>
+  `;
+  openModal();
+}
+
+async function saveNovoAcesso() {
+  const nome = document.getElementById('na-nome').value.trim();
+  const cnpj = document.getElementById('na-cnpj').value.trim();
+  const senha = document.getElementById('na-senha').value.trim();
+  const regime = document.getElementById('na-reg').value;
+
+  if (!nome || !cnpj || !senha) return toast('Preencha nome, CNPJ e senha.');
+
+  try {
+    // 1. Cria a empresa
+    const emp = await api('/empresas', 'POST', { nome, cnpj, regime, tarefas_ids: [] });
+    
+    // 2. Salva a credencial
+    await api('/cofre-nfse/' + emp.id, 'PUT', { usuario: cnpj, senha });
+    
+    toast('Empresa e Acesso NFS-e criados com sucesso!');
+    closeModal();
+    loadNfseCofre();
+    loadEmpresas();
+  } catch (e) {
+    toast('Erro: ' + (e.erro || e.message));
+  }
+}
+
+
+// ─── NF-e DISTRIBUIÇÃO ────────────────────────────────────────────────────────
+
+function initDistribuicaoForm() {
+  const input = document.getElementById('dist-competencia');
+  if (input && !input.value) {
+    const now = new Date();
+    input.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    api('/competencia').then(r => { if (r.competencia_ativa && input) input.value = r.competencia_ativa; }).catch(()=>{});
+  }
+  api('/certificados').then(rows => {
+    const sel = document.getElementById('dist-empresa-id');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Todas com certificado —</option>';
+    rows.filter(r => r.configurado).forEach(r => {
+      sel.innerHTML += `<option value="${r.id}">${r.nome}</option>`;
+    });
+  }).catch(()=>{});
+}
+
+async function loadDistribuicaoStatus() {
+  const el = document.getElementById('distribuicao-status');
+  if (!el) return;
+  try {
+    const rows = await api('/nfe-distribuicao/status');
+    if (!rows.length) { el.innerHTML = '<div style="color:var(--mt)">Nenhuma empresa cadastrada.</div>'; return; }
+    el.innerHTML = `<table class="table"><thead><tr>
+      <th>Empresa</th><th>CNPJ</th><th>Certificado</th><th>Último NSU</th><th>Última Sync</th><th></th>
+    </tr></thead><tbody>
+      ${rows.map(r => `<tr>
+        <td>${r.nome}</td>
+        <td>${r.cnpj}</td>
+        <td>${r.tem_certificado ? '<span class="badge b-ok">✓</span>' : '<span class="badge b-pe">Sem cert.</span>'}</td>
+        <td style="font-family:monospace">${r.ult_nsu || 0}</td>
+        <td>${r.ultima_sync ? r.ultima_sync.substring(0,16) : '—'}</td>
+        <td style="text-align:right">
+          ${r.tem_certificado ? `<button class="btn btn-g btn-sm" onclick="resetNSU(${r.id},'${r.nome}')">Zerar NSU</button>` : ''}
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red)">Erro ao carregar status.</div>';
+  }
+}
+
+async function resetNSU(empresaId, nome) {
+  if (!confirm(`Zerar NSU de "${nome}"?\nPróxima sincronização buscará TODOS os documentos.`)) return;
+  try {
+    await api(`/nfe-distribuicao/reset-nsu/${empresaId}`, 'POST');
+    toast('NSU zerado com sucesso.');
+    loadDistribuicaoStatus();
+  } catch(e) { toast('Erro ao zerar NSU.'); }
+}
+
+async function syncDistribuicao(resetNsu) {
+  if (resetNsu && !confirm('Sync Completa irá reprocessar desde o NSU 0.\nIsso pode demorar bastante. Continuar?')) return;
+
+  const empresaId  = document.getElementById('dist-empresa-id').value;
+  const competencia = document.getElementById('dist-competencia').value;
+  const logs = document.getElementById('dist-logs');
+  const btn  = document.getElementById('btn-dist-sync');
+
+  logs.innerHTML = '<div>⏳ Iniciando consulta NFeDistribuicaoDFe...</div>';
+  if (btn) { btn.disabled = true; btn.innerText = '⏳ Sincronizando...'; }
+
+  try {
+    const body = { reset_nsu: resetNsu };
+    if (empresaId)   body.empresa_id   = empresaId;
+    if (competencia) body.competencia   = competencia;
+
+    const res = await api('/nfe-distribuicao/sync', 'POST', body);
+
+    logs.innerHTML = (res.detalhes || []).map(l => {
+      const cor = l.startsWith('✅') || l.startsWith('💾') ? 'var(--green)'
+                : l.startsWith('❌') ? 'var(--red)'
+                : l.startsWith('⚠️') ? 'var(--yellow, #f59e0b)'
+                : 'var(--mt)';
+      return `<div style="color:${cor}">${l}</div>`;
+    }).join('');
+    logs.scrollTop = logs.scrollHeight;
+    toast(res.mensagem);
+    loadDistribuicaoStatus();
+  } catch(e) {
+    logs.innerHTML = `<div style="color:var(--red)">Erro: ${e.erro || e.message}</div>`;
+    toast('Erro na sincronização.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = '🔄 Sincronizar'; }
+  }
+}
+
+// ─── Certificados na aba Distribuição ────────────────────────────────────────
+
+async function loadDistribuicaoCerts() {
+  const el = document.getElementById('dist-certificados-lista');
+  if (!el) return;
+  try {
+    const rows = await api('/certificados');
+    if (!rows.length) { el.innerHTML = '<div style="color:var(--mt)">Nenhuma empresa cadastrada.</div>'; return; }
+    el.innerHTML = `<table class="table"><thead><tr>
+      <th>Empresa</th><th>CNPJ</th><th>Validade</th><th>Status</th><th></th>
+    </tr></thead><tbody>
+      ${rows.map(r => `<tr>
+        <td>${r.nome}</td>
+        <td>${r.cnpj}</td>
+        <td>${r.validade ? fdate(r.validade) : '—'}</td>
+        <td>${r.configurado ? '<span class="badge b-ok">✓ Configurado</span>' : '<span class="badge b-pe">Sem certificado</span>'}</td>
+        <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn btn-g btn-sm" onclick="abrirModalCertDist(${r.id})">Upload .pfx</button>
+          ${r.configurado ? `<button class="btn btn-sm" style="background:var(--red);color:#fff" onclick="removerCertDist(${r.id})">Remover</button>` : ''}
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red)">Erro ao carregar certificados.</div>';
+  }
+}
+
+function abrirModalCertDist(empresaId) {
+  document.getElementById('dist-cert-empresa-id').value = empresaId;
+  document.getElementById('dist-cert-pfx-file').value = '';
+  document.getElementById('dist-cert-senha').value = '';
+  document.getElementById('dist-cert-validade').value = '';
+  const modal = document.getElementById('modal-cert-dist');
+  modal.style.display = 'flex';
+}
+
+function fecharModalCertDist() {
+  document.getElementById('modal-cert-dist').style.display = 'none';
+}
+
+async function salvarCertificadoDist() {
+  const empresaId = document.getElementById('dist-cert-empresa-id').value;
+  const pfxFile   = document.getElementById('dist-cert-pfx-file').files[0];
+  const senha     = document.getElementById('dist-cert-senha').value.trim();
+  const validade  = document.getElementById('dist-cert-validade').value;
+
+  if (!pfxFile) return toast('Selecione o arquivo .pfx.');
+  if (!senha)   return toast('Informe a senha do certificado.');
+
+  const formData = new FormData();
+  formData.append('pfx', pfxFile);
+  formData.append('senha', senha);
+  if (validade) formData.append('validade', validade);
+
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api/certificados/${empresaId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw data;
+    toast('Certificado salvo com sucesso!');
+    fecharModalCertDist();
+    loadDistribuicaoCerts();
+    loadDistribuicaoStatus();
+    initDistribuicaoForm();
+  } catch(e) {
+    toast('Erro: ' + (e.erro || e.message || 'Falha ao salvar'));
+  }
+}
+
+async function removerCertDist(empresaId) {
+  if (!confirm('Remover certificado desta empresa?')) return;
+  try {
+    await api('/certificados/' + empresaId, 'DELETE');
+    toast('Certificado removido.');
+    loadDistribuicaoCerts();
+    loadDistribuicaoStatus();
+    initDistribuicaoForm();
+  } catch(e) { toast('Erro ao remover.'); }
 }

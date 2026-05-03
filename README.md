@@ -15,6 +15,22 @@
 
 ---
 
+## Estrutura do Projeto
+
+```text
+├── public/              # Frontend (SPA)
+├── src/
+│   ├── middleware/      # Middlewares (Auth, Error Handler)
+│   ├── routes/          # Endpoints modularizados
+│   ├── db.js            # Conexão centralizada com SQLite
+│   ├── schemas.js       # Schemas de validação Zod
+│   └── ...              # Módulos NFS-e e integrações
+├── tarefas.db           # Banco de dados SQLite (gerado automaticamente)
+└── server.js            # Ponto de entrada (inicialização)
+```
+
+---
+
 ## Instalação
 
 ```bash
@@ -53,5 +69,7 @@ Acesse em: **http://localhost:3000**
 - ✅ Histórico paginado com arquivo mensal imutável
 - ✅ Validação de dados com Zod em todas as rotas de escrita
 - ✅ Paginação em Execuções e Histórico
+- ✅ **Módulo de Captura NFS-e**: Integração com cofre de senhas e download em background.
+- ✅ **Automação MeuDANFE (NF-e/CT-e)**: Scraping automatizado com Puppeteer e uso de API oficial.
 
 Consulte [DOCUMENTACAO.md](./DOCUMENTACAO.md) para a referência completa da API.
